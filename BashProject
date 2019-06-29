@@ -1,0 +1,214 @@
+#! /usr/bin/env bash
+
+menu(){
+	local TITLE="$1";
+	shift;
+	local OPTIONS=("$@");
+        exec 3>&1;
+	IN=$(dialog --clear --title "$TITLE" --menu "$MENU_MESSAGE" $HEIGHT $WIDTH "$((${#OPTIONS[@]}/2))" "${OPTIONS[@]}" 2>&1 1>&3);
+	EXIT_CODE=$?;
+        exec 3>&-;
+	if [ $EXIT_CODE -eq 1 ];
+	then
+		IN=0;
+	fi
+}
+
+message(){
+	dialog --clear --cr-wrap --title "$1" --msgbox "$2" $HEIGHT $WIDTH;
+}
+
+progress_bar(){
+	echo "$1" | dialog --gauge "$PROGRESS_MESSAGE" $CHEIGHT $WIDTH;
+}
+
+get_local(){
+	progress_bar "0";
+
+	local IP=$(curl -L -s https://api.ipify.org);
+	progress_bar "25";
+
+	local LOCATION_DATA=$(curl -L -s https://ipvigilante.com/$IP);
+	LAT=$(echo $LOCATION_DATA | jq | grep latitude | cut -d"\"" -f4);
+	LON=$(echo $LOCATION_DATA | jq | grep longitude | cut -d"\"" -f4);
+	progress_bar "50";
+
+	local POINT_DATA=$(curl -L -s https://api.weather.gov/points/$LAT,$LON);
+	local FORECAST_LINK=$(echo $POINT_DATA | jq | grep -e \"forecast\": | cut -d"\"" -f4);
+	progress_bar "75";
+
+	local FORECAST_DATA=$(curl -L -s $FORECAST_LINK);
+	FORECAST=$(echo $FORECAST_DATA | jq | grep -e name -e detailed | cut -d"\"" -f4 | sed '0~2 a\\');
+	progress_bar "100";
+}
+
+main_menu(){	
+	local MENU_TITLE="Main Menu";
+	local MENU_OPTIONS=(1 "User Information" 2 "System Information" 3 "Local Inforamtion" 4 "Exit");
+	menu "$MENU_TITLE" "${MENU_OPTIONS[@]}";
+
+	case $IN in
+		0)
+			RUNNING=0;
+			;;
+		1)
+			CURRENT_MENU=1;
+			;;
+		2)
+			CURRENT_MENU=2;
+			;;
+		3)
+			get_local;
+			CURRENT_MENU=3;
+			;;
+		4)
+			RUNNING=0;
+			;;
+	esac
+}
+
+user_menu(){
+	local MESSAGE="";
+	local MENU_TITLE="User Information";
+	local MENU_OPTIONS=(1 "Users logged in" 2 "Primary group" 3 "User groups" 4 "Main menu" 5 "Exit");
+	menu "$MENU_TITLE" "${MENU_OPTIONS[@]}";
+
+	case $IN in
+		0)
+			CURRENT_MENU=0;
+			;;
+		1)
+			MESSAGE="The following users are logged on:\n"$(users | tr " " "\n");
+			MESSAGE=$MESSAGE"\n\nThe current user is: "$(id -u -n);
+			MESSAGE=$MESSAGE"\n\nThe current user ID id: "$(id -u);
+			message "${MENU_OPTIONS[1]}" "$MESSAGE";
+			;;
+		2)
+			MESSAGE="The current user's primary group is: "$(id -g -n);
+			MESSAGE=$MESSAGE"\n\nThe current user's primary group ID is: "$(id -g);
+			message "${MENU_OPTIONS[3]}" "$MESSAGE";
+			;;
+		3)
+			MESSAGE="The current user belongs to the following groups:";
+			MESSAGE=$MESSAGE"\n"$(id | cut -d= -f4 | tr "," "\n" |  sed -e s/^/"ID = "/ | 
+				sed -e s/"("/", Name = "/g | sed -e s/")"//g); 
+			message "${MENU_OPTIONS[5]}" "$MESSAGE";
+			;;
+		4)
+			CURRENT_MENU=0;
+			;;
+		5)
+			RUNNING=0;
+			;;
+	esac
+}
+
+sys_menu(){
+	local MESSAGE="";
+	local MENU_TITLE="System Inforamtion";
+	local MENU_OPTIONS=(1 "Number of processors" 2 "Free memory" 3 "Disk space" 4 "Home directory size" 
+	5 "Hostname" 6 "IP address" 7 "Main Menu" 8 "Exit");
+	menu "$MENU_TITLE" "${MENU_OPTIONS[@]}";
+
+	case $IN in
+		0)
+			CURRENT_MENU=0;
+			;;
+		1)
+			MESSAGE="This machine has "$(cat /proc/cpuinfo | grep processor | wc -l)" processors.";
+			message "${MENU_OPTIONS[1]}" "$MESSAGE";
+			;;
+		2)
+			MESSAGE="The total memory on this machine is: "$(free -h | grep Mem | tr -s " " | cut -d" " -f2);
+			MESSAGE=$MESSAGE"\n\nThe total free memory on this machine is: "$(free -h | grep Mem | tr -s " " | cut -d" " -f4);
+			message "${MENU_OPTIONS[3]}" "$MESSAGE";
+			;;
+		3)
+			MESSAGE="The total disk space on this machine is: "$(df -h -l --total | grep total | tr -s " " | cut -d" " -f2);
+			MESSAGE=$MESSAGE"\n\nThe total local and network disk space is: "$(df -h --total | grep total | tr -s " " | cut -d" " -f2);
+			message "${MENU_OPTIONS[5]}" "$MESSAGE";
+			;;
+		4)
+			MESSAGE="The size of the current user's home directory is: "$(du -h -s /home/$USER | cut -f1);
+			message "${MENU_OPTIONS[7]}" "$MESSAGE";
+			;;
+		5)
+			MESSAGE="The hostname is: "$(hostname);
+			message "${MENU_OPTIONS[9]}" "$MESSAGE"
+			;;
+		6)
+			MESSAGE="This machine's IP address is: "$(ifconfig | head -n2 | tail -n1 | tr -s " " | cut -d" " -f3);
+			message "${MENU_OPTIONS[11]}" "$MESSAGE";
+			;;
+		7)
+			CURRENT_MENU=0;
+			;;
+		8)
+			RUNNING=0;
+			;;
+	esac
+}
+
+local_menu(){
+	local MESSAGE="";
+	local MENU_TITLE="Local Inforamtion";
+	local MENU_OPTIONS=(1 "Latitude and longitude" 2 "Weather forcast" 3 "Update info" 4 "Main menu" 5 "Exit");
+	menu "$MENU_TITLE" "${MENU_OPTIONS[@]}";
+
+	case $IN in
+		0)
+			CURRENT_MENU=0;
+			;;
+		1)
+			MESSAGE="Your latitude is: "$LAT;
+			MESSAGE=$MESSAGE"\n\nYour longitude is: "$LON;
+			message "${MENU_OPTIONS[1]}" "$MESSAGE";
+			;;
+		2)
+			MESSAGE="Your local forecast is:\n\n"$FORECAST;
+			message "${MENU_OPTIONS[3]}" "$MESSAGE";
+			;;
+		3)
+			get_local;
+			;;
+		4)
+			CURRENT_MENU=0;
+			;;
+		5)
+			RUNNING=0;
+			;;
+	esac
+}
+
+RUNNING=1;
+HEIGHT=30;
+WIDTH=70;
+CHEIGHT=10;
+MENU_MESSAGE="Pick an option";i
+PROGRESS_MESSAGE="Gathering Informationos";
+CURRENT_MENU=0;
+
+while [ $RUNNING -eq 1 ];
+do
+	case $CURRENT_MENU in
+		0)
+			main_menu;
+			;;
+		1)
+			user_menu;
+			;;
+		2)
+			sys_menu;
+			;;
+		3)
+			local_menu;
+			;;
+	esac
+
+	if [ $RUNNING -eq 0 ]
+	then
+		echo "Thanks!";
+	fi
+done
+
+
