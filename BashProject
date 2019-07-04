@@ -1,11 +1,15 @@
 #! /usr/bin/env bash
 
+#George Fayette
+#CIS 241 01
+#Bash Project
+
 menu(){
 	local TITLE="$1";
 	shift;
 	local OPTIONS=("$@");
         exec 3>&1;
-	IN=$(dialog --clear --title "$TITLE" --menu "$MENU_MESSAGE" $HEIGHT $WIDTH "$((${#OPTIONS[@]}/2))" "${OPTIONS[@]}" 2>&1 1>&3);
+	IN=$(dialog --clear --title "$TITLE" --menu "$MENU_MESSAGE" $MENU_HEIGHT $WIDTH "$((${#OPTIONS[@]}/2))" "${OPTIONS[@]}" 2>&1 1>&3);
 	EXIT_CODE=$?;
         exec 3>&-;
 	if [ $EXIT_CODE -eq 1 ];
@@ -15,11 +19,11 @@ menu(){
 }
 
 message(){
-	dialog --clear --cr-wrap --title "$1" --msgbox "$2" $HEIGHT $WIDTH;
+	dialog --clear --cr-wrap --title "$1" --msgbox "$2" $MENU_HEIGHT $WIDTH;
 }
 
 progress_bar(){
-	echo "$1" | dialog --gauge "$PROGRESS_MESSAGE" $CHEIGHT $WIDTH;
+	echo "$1" | dialog --gauge "$PROGRESS_MESSAGE" $PROGRESS_HEIGHT $WIDTH;
 }
 
 get_local(){
@@ -181,14 +185,14 @@ local_menu(){
 }
 
 RUNNING=1;
-HEIGHT=30;
+MENU_HEIGHT=30;
 WIDTH=70;
-CHEIGHT=10;
-MENU_MESSAGE="Pick an option";i
+PROGRESS_HEIGHT=10;
+MENU_MESSAGE="Pick an option";
 PROGRESS_MESSAGE="Gathering Informationos";
 CURRENT_MENU=0;
 
-while [ $RUNNING -eq 1 ];
+while [ $RUNNING -ne 0 ];
 do
 	case $CURRENT_MENU in
 		0)
@@ -210,5 +214,3 @@ do
 		echo "Thanks!";
 	fi
 done
-
-
